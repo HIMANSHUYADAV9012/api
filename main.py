@@ -1,3 +1,4 @@
+
 import asyncio
 import time
 import re
@@ -29,8 +30,8 @@ APIFY_RUN_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/runs?token={APIFY_TOK
 APIFY_DATASET_URL = "https://api.apify.com/v2/datasets/{dataset_id}/items?token={token}"
 
 # ================= TELEGRAM (HARDCODED) =================
-TELEGRAM_BOT_TOKEN = "8495512623:AAF6lpsd0vAAfcbCABre05IJ_-_WAdzItYk"
-TELEGRAM_CHAT_ID = "5029478739"
+TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"
 
 # ================= SETTINGS =================
 REQUEST_TIMEOUT = 60
@@ -38,7 +39,7 @@ POLL_INTERVAL = 1
 MAX_WAIT_TIME = 15
 CACHE_TTL = 300
 
-# ================= RATE LIMITING =================
+# ================= RATE LIMIT =================
 limiter = Limiter(key_func=get_remote_address)
 app = FastAPI(title="Instagram Profile API", version="2.0.0")
 app.state.limiter = limiter
@@ -47,10 +48,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ================= CORS =================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://followerssupply.store",
-        "https://www.followerssupply.store"
-    ],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -60,7 +58,7 @@ CACHE: Dict[str, dict] = {}
 STATS = {"hits": 0, "misses": 0, "last_alerts": []}
 LOCK = asyncio.Lock()
 
-# ================= TELEGRAM FUNCTION =================
+# ================= TELEGRAM =================
 async def notify_telegram(message: str):
     STATS["last_alerts"].append({"time": time.time(), "msg": message})
     STATS["last_alerts"] = STATS["last_alerts"][-10:]
@@ -69,8 +67,7 @@ async def notify_telegram(message: str):
 
     payload = {
         "chat_id": TELEGRAM_CHAT_ID,
-        "text": message,
-        "parse_mode": "HTML"
+        "text": message
     }
 
     try:
@@ -82,6 +79,18 @@ async def notify_telegram(message: str):
 # ================= UTILS =================
 def validate_username(username: str) -> bool:
     return bool(re.match(r"^[a-zA-Z0-9._]{1,30}$", username))
+
+def get_random_headers():
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X)",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+    ]
+    return {
+        "User-Agent": random.choice(user_agents),
+        "Referer": "https://www.instagram.com/",
+        "Accept": "image/webp,image/apng,image/*,*/*;q=0.8",
+    }
 
 def format_profile(profile: dict) -> dict:
     return {
@@ -154,7 +163,7 @@ async def fetch_from_apify(username: str) -> dict:
 
         return profile
 
-# ================= MAIN ENDPOINT =================
+# ================= MAIN SCRAPE =================
 @app.get("/scrape/{username}")
 @limiter.limit("30/minute")
 async def get_user(username: str, request: Request):
@@ -187,6 +196,31 @@ async def get_user(username: str, request: Request):
         }
 
     return formatted
+
+# ================= PROXY IMAGE =================
+@app.get("/proxy-image/")
+@limiter.limit("50/minute")
+async def proxy_image(request: Request, url: str = Query(...)):
+    try:
+        headers = get_random_headers()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+
+        if resp.status_code == 200:
+            return StreamingResponse(
+                io.BytesIO(resp.content),
+                media_type=resp.headers.get("content-type", "image/jpeg")
+            )
+
+        if resp.status_code == 404:
+            raise HTTPException(404, "Image not found")
+
+        await notify_telegram(f"⚠ IMAGE FETCH FAILED\n{url}\nHTTP {resp.status_code}")
+        raise HTTPException(502, "IMAGE_FETCH_FAILED")
+
+    except Exception as e:
+        await notify_telegram(f"🚨 PROXY IMAGE ERROR\n{url}\n{str(e)}")
+        raise HTTPException(502, "IMAGE_FETCH_FAILED")
 
 # ================= HEALTH =================
 @app.get("/health")
