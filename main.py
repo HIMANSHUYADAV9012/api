@@ -30,8 +30,8 @@ APIFY_RUN_URL = f"https://api.apify.com/v2/acts/{ACTOR_ID}/runs?token={APIFY_TOK
 APIFY_DATASET_URL = "https://api.apify.com/v2/datasets/{dataset_id}/items?token={token}"
 
 # ================= TELEGRAM (HARDCODED) =================
-TELEGRAM_BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
-TELEGRAM_CHAT_ID = "YOUR_CHAT_ID_HERE"
+TELEGRAM_BOT_TOKEN = "8495512623:AAF6lpsd0vAAfcbCABre05IJ_-_WAdzItYk"
+TELEGRAM_CHAT_ID = "5029478739"
 
 # ================= SETTINGS =================
 REQUEST_TIMEOUT = 60
@@ -226,3 +226,4 @@ async def proxy_image(request: Request, url: str = Query(...)):
 @app.get("/health")
 async def health():
     return {"status": "healthy", "time": time.time()}
+
