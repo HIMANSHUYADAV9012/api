@@ -1,4 +1,3 @@
-
 import asyncio
 import time
 import re
@@ -37,7 +36,8 @@ TELEGRAM_CHAT_ID = "5029478739"
 REQUEST_TIMEOUT = 60
 POLL_INTERVAL = 1
 MAX_WAIT_TIME = 15
-CACHE_TTL = 300
+CACHE_TTL = 300              # for successful profiles
+NOT_FOUND_CACHE_TTL = 300   # for "PROFILE_NOT_FOUND" responses (negative cache)
 
 # ================= RATE LIMIT =================
 limiter = Limiter(key_func=get_remote_address)
@@ -48,7 +48,10 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ================= CORS =================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "https://followerssupply.store",
+        "https://www.followerssupply.store"
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -167,28 +170,34 @@ async def fetch_from_apify(username: str) -> dict:
 @app.get("/scrape/{username}")
 @limiter.limit("30/minute")
 async def get_user(username: str, request: Request):
-
     if not validate_username(username):
         raise HTTPException(400, "INVALID_USERNAME")
 
+    # --- Check cache (positive + negative) ---
     async with LOCK:
         cached = CACHE.get(username)
         if cached and cached["expiry"] > time.time():
             STATS["hits"] += 1
-            return cached["data"]
+            if cached["data"] is None:          # cached "not found"
+                raise HTTPException(404, "PROFILE_NOT_FOUND")
+            return cached["data"]               # cached valid profile
 
     STATS["misses"] += 1
 
     try:
         raw_profile = await fetch_from_apify(username)
-    except HTTPException:
-        raise
-    except Exception as e:
-        await notify_telegram(f"🚨 INTERNAL ERROR\n@{username}\n{str(e)}")
-        raise HTTPException(500, "INTERNAL_ERROR")
+    except HTTPException as e:
+        # --- Cache 404 responses so we don't hammer Apify again ---
+        if e.status_code == 404:
+            async with LOCK:
+                CACHE[username] = {
+                    "data": None,
+                    "expiry": time.time() + NOT_FOUND_CACHE_TTL
+                }
+        raise   # re-raise the same exception to the client
 
+    # Success – cache the formatted profile
     formatted = format_profile(raw_profile)
-
     async with LOCK:
         CACHE[username] = {
             "data": formatted,
@@ -225,4 +234,4 @@ async def proxy_image(request: Request, url: str = Query(...)):
 # ================= HEALTH =================
 @app.get("/health")
 async def health():
-    return {"status": "healthy", "time": time.time()}  
+    return {"status": "healthy", "time": time.time()}
