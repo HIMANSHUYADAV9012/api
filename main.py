@@ -48,10 +48,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # ================= CORS =================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://followerssupply.store",
-        "https://www.followerssupply.store"
-    ],
+    allow_origins=["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -235,3 +232,4 @@ async def proxy_image(request: Request, url: str = Query(...)):
 @app.get("/health")
 async def health():
     return {"status": "healthy", "time": time.time()}
+
