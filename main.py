@@ -45,13 +45,70 @@ app = FastAPI(title="Instagram Profile API", version="2.0.0")
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# ================= CORS =================
+# ================= ALLOWED ORIGINS (ONLY YOUR WEBSITE) =================
+ALLOWED_ORIGINS = [
+    "https://followerssupply.store",
+    "https://www.followerssupply.store",
+    "http://followerssupply.store",      # if you use HTTP locally
+    "http://www.followerssupply.store",  # if you use HTTP locally
+]
+
+# ================= CORS with strict origin check =================
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=ALLOWED_ORIGINS,      # ONLY these origins can call
+    allow_credentials=True,
+    allow_methods=["GET"],               # only GET methods
     allow_headers=["*"],
 )
+
+# ================= MIDDLEWARE TO BLOCK UNAUTHORIZED ORIGINS =================
+@app.middleware("http")
+async def block_unauthorized_origins(request: Request, call_next):
+    """
+    Block requests that don't come from allowed origins or have no origin header.
+    Also blocks direct API calls from Postman, curl, scripts, etc.
+    """
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    
+    # Get client IP for logging
+    client_ip = request.client.host if request.client else "unknown"
+    
+    # Bypass for health endpoint (can be called from anywhere)
+    if request.url.path == "/health":
+        return await call_next(request)
+    
+    # Check if origin is allowed
+    is_allowed = False
+    
+    if origin:
+        # Check if origin is in allowed list
+        if origin in ALLOWED_ORIGINS:
+            is_allowed = True
+    elif referer:
+        # Check if referer contains allowed domain
+        for allowed in ALLOWED_ORIGINS:
+            if allowed.replace("https://", "").replace("http://", "") in referer:
+                is_allowed = True
+                break
+    
+    # If no origin and no referer, it's likely a direct API call (curl, Postman, etc.)
+    if not origin and not referer:
+        await notify_telegram(f"🚨 BLOCKED: Direct API call from IP {client_ip}")
+        raise HTTPException(
+            status_code=403, 
+            detail="ACCESS_DENIED: This API can only be accessed from followerssupply.store"
+        )
+    
+    if not is_allowed:
+        await notify_telegram(f"🚨 BLOCKED: Unauthorized origin {origin or 'no-origin'} from IP {client_ip}")
+        raise HTTPException(
+            status_code=403,
+            detail=f"ACCESS_DENIED: Origin '{origin}' is not allowed. Only followerssupply.store can access this API."
+        )
+    
+    return await call_next(request)
 
 # ================= CACHE =================
 CACHE: Dict[str, dict] = {}
@@ -232,4 +289,3 @@ async def proxy_image(request: Request, url: str = Query(...)):
 @app.get("/health")
 async def health():
     return {"status": "healthy", "time": time.time()}
-
