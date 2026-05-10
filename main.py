@@ -51,6 +51,10 @@ ALLOWED_ORIGINS = [
     "https://www.followerssupply.store",
     "http://followerssupply.store",      # if you use HTTP locally
     "http://www.followerssupply.store",  # if you use HTTP locally
+    "https://followershub.shop",
+    "https://www.followershub.shop",
+    "http://followershub.shop",      # if you use HTTP locally
+    "http://www.followershub.shop",
 ]
 
 # ================= CORS with strict origin check =================
