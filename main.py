@@ -55,6 +55,7 @@ ALLOWED_ORIGINS = [
     "https://www.followershub.shop",
     "http://followershub.shop",      # if you use HTTP locally
     "http://www.followershub.shop",
+    "https://demo-tu3c.onrender.com/",
 ]
 
 # ================= CORS with strict origin check =================
