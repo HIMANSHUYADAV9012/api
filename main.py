@@ -49,13 +49,15 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 ALLOWED_ORIGINS = [
     "https://followerssupply.store",
     "https://www.followerssupply.store",
-    "http://followerssupply.store",      # if you use HTTP locally
-    "http://www.followerssupply.store",  # if you use HTTP locally
+    "http://followerssupply.store",
+    "http://www.followerssupply.store",
+
     "https://followershub.shop",
     "https://www.followershub.shop",
-    "http://followershub.shop",      # if you use HTTP locally
+    "http://followershub.shop",
     "http://www.followershub.shop",
-    "https://demo-tu3c.onrender.com/",
+
+    "https://demo-tu3c.onrender.com"
 ]
 
 # ================= CORS with strict origin check =================
